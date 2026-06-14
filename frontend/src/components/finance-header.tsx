@@ -122,7 +122,7 @@ export function FinanceHeader({
                                     className={[
                                         "inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border px-3.5 text-xs font-medium transition",
                                         active
-                                            ? "border-[#09152f] bg-[#09152f] text-white shadow-[0_8px_20px_rgba(9,21,47,0.16)]"
+                                            ? "border-[#d1bd9b] bg-[#f7f0e4] text-[#76572b] shadow-[0_8px_20px_rgba(155,115,58,0.12)]"
                                             : "border-[#dfe3e8] bg-white text-[#596273] hover:border-[#d1bd9b] hover:bg-[#fbf7ef] hover:text-[#80602f]",
                                     ].join(" ")}
                                 >

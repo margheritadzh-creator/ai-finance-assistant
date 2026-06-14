@@ -10,14 +10,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 import {
+    ArrowUpRight,
     BarChart3,
-  BrainCircuit,
-  CircleDollarSign,
-  LoaderCircle,
-  ReceiptText,
-  ShieldCheck,
-  Sparkles,
-  TriangleAlert,
+    BrainCircuit,
+    CircleDollarSign,
+    LoaderCircle,
+    ReceiptText,
+    ShieldCheck,
+    Sparkles,
+    TriangleAlert,
 } from "lucide-react";
 
 import { MonthlyTrendChart } from "@/components/monthly-trend-chart";
@@ -194,6 +195,7 @@ if (loading) {
 
                 <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <OverviewCard
+                        href="/expenses"
                         icon={<CircleDollarSign size={20} />}
                         iconClassName="bg-[#f4ead8] text-[#9b733a]"
                         title="本月支出"
@@ -209,6 +211,7 @@ if (loading) {
                     />
 
                     <OverviewCard
+                        href="/settings"
                         icon={<BarChart3 size={20} />}
                         iconClassName="bg-[#e9eef8] text-[#34548a]"
                         title="预算使用"
@@ -226,6 +229,7 @@ if (loading) {
                     />
 
                     <OverviewCard
+                        href="/analytics"
                         icon={<ShieldCheck size={20} />}
                         iconClassName="bg-[#eceef2] text-[#566174]"
                         title="财务健康度"
@@ -237,6 +241,7 @@ if (loading) {
                     />
 
                     <OverviewCard
+                        href="/analytics"
                         icon={<BrainCircuit size={20} />}
                         iconClassName="bg-[#efe8f5] text-[#735589]"
                         title="下月支出预测"
@@ -493,6 +498,7 @@ if (loading) {
 }
 
 interface OverviewCardProps {
+    href: string;
     icon: ReactNode;
     iconClassName: string;
     title: string;
@@ -502,6 +508,7 @@ interface OverviewCardProps {
 }
 
 function OverviewCard({
+                          href,
                           icon,
                           iconClassName,
                           title,
@@ -510,33 +517,49 @@ function OverviewCard({
                           indicator,
                       }: OverviewCardProps) {
     return (
-        <article className="finance-surface group relative overflow-hidden rounded-[22px] p-5 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_55px_rgba(15,23,42,0.09)]">
-            <div className="absolute inset-x-0 top-0 h-[2px] bg-[linear-gradient(90deg,transparent,#c4a36a,transparent)] opacity-65" />
+        <Link
+            href={href}
+            aria-label={`查看${title}`}
+            className="group block rounded-[22px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c4a36a] focus-visible:ring-offset-2"
+        >
+            <article className="finance-surface relative h-full cursor-pointer overflow-hidden rounded-[22px] p-5 transition duration-200 group-hover:-translate-y-1 group-hover:border-[#d7c39f] group-hover:shadow-[0_22px_55px_rgba(15,23,42,0.11)]">
+                <div className="absolute inset-x-0 top-0 h-[2px] bg-[linear-gradient(90deg,transparent,#c4a36a,transparent)] opacity-65" />
 
-            <div className="flex items-start justify-between">
-                <div
-                    className={`flex h-10 w-10 items-center justify-center rounded-[13px] ${iconClassName}`}
-                >
-                    {icon}
+                <div className="flex items-start justify-between gap-3">
+                    <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-[13px] transition duration-200 group-hover:scale-105 ${iconClassName}`}
+                    >
+                        {icon}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-[#f3f4f6] px-2.5 py-1 text-[10px] font-semibold text-[#858d9a]">
+                            {indicator}
+                        </span>
+
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[#e2e5ea] bg-white text-[#7c8594] transition duration-200 group-hover:border-[#d1bd9b] group-hover:bg-[#fbf7ef] group-hover:text-[#8b662f]">
+                            <ArrowUpRight size={13} />
+                        </span>
+                    </div>
                 </div>
 
-                <span className="rounded-full bg-[#f3f4f6] px-2.5 py-1 text-[10px] font-semibold text-[#858d9a]">
-          {indicator}
-        </span>
-            </div>
+                <p className="mt-5 text-sm text-[#737d8d] transition group-hover:text-[#80602f]">
+                    {title}
+                </p>
 
-            <p className="mt-5 text-sm text-[#737d8d]">
-                {title}
-            </p>
+                <p className="mt-2 text-[26px] font-semibold tracking-[-0.035em] text-[#172033]">
+                    {value}
+                </p>
 
-            <p className="mt-2 text-[26px] font-semibold tracking-[-0.035em] text-[#172033]">
-                {value}
-            </p>
+                <p className="mt-2 text-xs leading-5 text-[#969da8]">
+                    {description}
+                </p>
 
-            <p className="mt-2 text-xs leading-5 text-[#969da8]">
-                {description}
-            </p>
-        </article>
+                <p className="mt-4 text-[11px] font-medium text-[#9b733a] opacity-0 transition duration-200 group-hover:opacity-100">
+                    点击查看详情
+                </p>
+            </article>
+        </Link>
     );
 }
 
