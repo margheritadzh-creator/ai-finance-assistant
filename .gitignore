@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+.env
+frontend/node_modules/
+frontend/.next/
+target/
