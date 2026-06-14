@@ -1,26 +1,30 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
-  useRouter } from "next/navigation";
-import {
+    type ReactNode,
     useCallback,
-  useEffect,
-  useState,
-  } from "react";
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 
 import {
     ChevronLeft,
-  ChevronRight,
-  CircleAlert,
-  Edit3,
-  LoaderCircle,
-  Plus,
-  ReceiptText,
-  Search,
-  Trash2,
+    ChevronRight,
+    CircleAlert,
+    Edit3,
+    Filter,
+    LoaderCircle,
+    Plus,
+    ReceiptText,
+    RotateCcw,
+    Search,
+    Trash2,
 } from "lucide-react";
 
 import { ExpenseFormModal } from "@/components/expense-form-modal";
+import { FinanceHeader } from "@/components/finance-header";
 import { apiRequest, ApiError } from "@/lib/api";
 import {
     clearAuth,
@@ -36,42 +40,108 @@ import type {
     ExpensePageResponse,
     ExpenseRecord,
 } from "@/types/expense";
-import {
-    FinanceHeader,
-} from "@/components/finance-header";
 
 const PAGE_SIZE = 10;
+
+type ExpenseSortBy =
+    | "occurredAt"
+    | "amount";
+
+type ExpenseSortDirection =
+    | "asc"
+    | "desc";
+
+type ExpenseAnomalyFilter =
+    | ""
+    | "NONE"
+    | "NOTICE"
+    | "WARNING";
+
+interface ExpenseFilters {
+    keyword: string;
+    categoryId: string;
+    startDate: string;
+    endDate: string;
+    anomalyLevel: ExpenseAnomalyFilter;
+    minAmount: string;
+    maxAmount: string;
+    sortBy: ExpenseSortBy;
+    sortDirection: ExpenseSortDirection;
+}
+
+const DEFAULT_FILTERS: ExpenseFilters = {
+    keyword: "",
+    categoryId: "",
+    startDate: "",
+    endDate: "",
+    anomalyLevel: "",
+    minAmount: "",
+    maxAmount: "",
+    sortBy: "occurredAt",
+    sortDirection: "desc",
+};
 
 export default function ExpensesPage() {
     const router = useRouter();
 
+    const hasLoadedRef = useRef(false);
+
     const [user, setUser] =
         useState<CurrentUser | null>(null);
 
-    const [categories, setCategories] = useState<
-        ExpenseCategory[]
-    >([]);
+    const [categories, setCategories] =
+        useState<ExpenseCategory[]>([]);
 
     const [pageData, setPageData] =
-        useState<ExpensePageResponse | null>(null);
+        useState<ExpensePageResponse | null>(
+            null,
+        );
 
-    const [page, setPage] = useState(0);
-    const [loading, setLoading] = useState(true);
+    const [page, setPage] =
+        useState(0);
+
+    const [
+        filterDraft,
+        setFilterDraft,
+    ] = useState<ExpenseFilters>({
+        ...DEFAULT_FILTERS,
+    });
+
+    const [
+        appliedFilters,
+        setAppliedFilters,
+    ] = useState<ExpenseFilters>({
+        ...DEFAULT_FILTERS,
+    });
+
+    const [loading, setLoading] =
+        useState(true);
+
     const [refreshing, setRefreshing] =
         useState(false);
 
-    const [errorMessage, setErrorMessage] =
-        useState("");
+    const [
+        errorMessage,
+        setErrorMessage,
+    ] = useState("");
+
+    const [
+        filterError,
+        setFilterError,
+    ] = useState("");
 
     const [modalOpen, setModalOpen] =
         useState(false);
 
-    const [editingExpense, setEditingExpense] =
-        useState<ExpenseRecord | null>(null);
+    const [
+        editingExpense,
+        setEditingExpense,
+    ] = useState<ExpenseRecord | null>(
+        null,
+    );
 
     const loadData = useCallback(
-        async (refresh = false) => {
-
+        async (forceRefresh = false) => {
             const token = getAccessToken();
 
             if (!token) {
@@ -79,7 +149,11 @@ export default function ExpensesPage() {
                 return;
             }
 
-            if (refresh) {
+            const showRefreshState =
+                forceRefresh ||
+                hasLoadedRef.current;
+
+            if (showRefreshState) {
                 setRefreshing(true);
             } else {
                 setLoading(true);
@@ -88,6 +162,13 @@ export default function ExpensesPage() {
             setErrorMessage("");
 
             try {
+                const expenseUrl =
+                    buildExpenseQuery(
+                        page,
+                        PAGE_SIZE,
+                        appliedFilters,
+                    );
+
                 const [
                     currentUser,
                     categoryList,
@@ -96,17 +177,21 @@ export default function ExpensesPage() {
                     apiRequest<CurrentUser>(
                         "/api/auth/me",
                     ),
+
                     apiRequest<ExpenseCategory[]>(
                         "/api/categories",
                     ),
+
                     apiRequest<ExpensePageResponse>(
-                        `/api/expenses?page=${page}&size=${PAGE_SIZE}`,
+                        expenseUrl,
                     ),
                 ]);
 
                 setUser(currentUser);
                 setCategories(categoryList);
                 setPageData(expensePage);
+
+                hasLoadedRef.current = true;
             } catch (error) {
                 if (
                     error instanceof ApiError &&
@@ -127,18 +212,67 @@ export default function ExpensesPage() {
                 setRefreshing(false);
             }
         },
-        [page, router],
+        [
+            appliedFilters,
+            page,
+            router,
+        ],
     );
 
     useEffect(() => {
-        const timerId = window.setTimeout(() => {
-            void loadData();
-        }, 0);
+        const timerId =
+            window.setTimeout(() => {
+                void loadData();
+            }, 0);
 
         return () => {
             window.clearTimeout(timerId);
         };
     }, [loadData]);
+
+    function updateFilter<
+        Key extends keyof ExpenseFilters,
+    >(
+        key: Key,
+        value: ExpenseFilters[Key],
+    ) {
+        setFilterDraft((current) => ({
+            ...current,
+            [key]: value,
+        }));
+    }
+
+    function applyFilters() {
+        const normalizedFilters =
+            normalizeFilters(filterDraft);
+
+        const validationMessage =
+            validateFilters(normalizedFilters);
+
+        if (validationMessage) {
+            setFilterError(
+                validationMessage,
+            );
+            return;
+        }
+
+        setFilterError("");
+        setPage(0);
+        setAppliedFilters(
+            normalizedFilters,
+        );
+    }
+
+    function resetFilters() {
+        const clearedFilters = {
+            ...DEFAULT_FILTERS,
+        };
+
+        setFilterError("");
+        setFilterDraft(clearedFilters);
+        setPage(0);
+        setAppliedFilters(clearedFilters);
+    }
 
     function openCreateModal() {
         setEditingExpense(null);
@@ -178,11 +312,23 @@ export default function ExpensesPage() {
                 pageData.content.length === 1 &&
                 page > 0
             ) {
-                setPage((current) => current - 1);
+                setPage(
+                    (current) =>
+                        current - 1,
+                );
             } else {
                 await loadData(true);
             }
         } catch (error) {
+            if (
+                error instanceof ApiError &&
+                error.status === 401
+            ) {
+                clearAuth();
+                router.replace("/login");
+                return;
+            }
+
             setErrorMessage(
                 error instanceof Error
                     ? error.message
@@ -191,7 +337,7 @@ export default function ExpensesPage() {
         }
     }
 
-if (loading) {
+    if (loading) {
         return (
             <main className="flex min-h-screen items-center justify-center">
                 <div className="flex items-center gap-3 text-[#344054]">
@@ -215,12 +361,15 @@ if (loading) {
                     />
 
                     <p className="mt-4 text-[#4a5568]">
-                        {errorMessage || "暂时无法加载账单"}
+                        {errorMessage ||
+                            "暂时无法加载账单"}
                     </p>
 
                     <button
                         type="button"
-                        onClick={() => void loadData()}
+                        onClick={() =>
+                            void loadData()
+                        }
                         className="mt-5 rounded-[13px] bg-[#09152f] px-5 py-3 text-sm font-medium text-white"
                     >
                         重新加载
@@ -230,12 +379,19 @@ if (loading) {
         );
     }
 
+    const activeFilterCount =
+        countActiveFilters(
+            appliedFilters,
+        );
+
     return (
         <>
             <main className="min-h-screen px-4 py-5 sm:px-6 lg:px-10 lg:py-7">
                 <div className="mx-auto max-w-[1380px]">
                     <FinanceHeader
-                        displayName={user.displayName}
+                        displayName={
+                            user.displayName
+                        }
                         email={user.email}
                         refreshing={refreshing}
                         onRefresh={() => {
@@ -254,9 +410,9 @@ if (loading) {
                             </h1>
 
                             <p className="mt-3 text-[15px] text-[#747d8d]">
-                                共记录
+                                当前共找到
                                 {pageData.totalElements}
-                                笔消费，可新增、编辑或删除账单。
+                                笔消费记录。
                             </p>
                         </div>
 
@@ -276,7 +432,20 @@ if (loading) {
                         </div>
                     )}
 
-                    <section className="finance-surface mt-7 overflow-hidden rounded-[25px]">
+                    <ExpenseFilterPanel
+                        categories={categories}
+                        filters={filterDraft}
+                        activeFilterCount={
+                            activeFilterCount
+                        }
+                        errorMessage={filterError}
+                        refreshing={refreshing}
+                        onChange={updateFilter}
+                        onApply={applyFilters}
+                        onReset={resetFilters}
+                    />
+
+                    <section className="finance-surface mt-5 overflow-hidden rounded-[25px]">
                         <div className="flex flex-col gap-4 border-b border-[#e7e8eb] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <p className="font-semibold text-[#273147]">
@@ -284,19 +453,48 @@ if (loading) {
                                 </p>
 
                                 <p className="mt-1 text-xs text-[#9299a5]">
-                                    按消费时间从新到旧排列
+                                    {getSortDescription(
+                                        appliedFilters,
+                                    )}
                                 </p>
                             </div>
 
-                            <div className="flex items-center gap-2 rounded-[13px] border border-[#e0e3e8] bg-[#f8f9fa] px-3 py-2 text-xs text-[#7b8492]">
-                                <Search size={14} />
-                                当前第{pageData.page + 1}页
+                            <div className="flex flex-wrap items-center gap-2">
+                                {activeFilterCount > 0 && (
+                                    <span className="rounded-full bg-[#f4ead8] px-3 py-2 text-xs font-medium text-[#80602f]">
+                    已启用
+                                        {activeFilterCount}
+                                        项筛选
+                  </span>
+                                )}
+
+                                <div className="flex items-center gap-2 rounded-[13px] border border-[#e0e3e8] bg-[#f8f9fa] px-3 py-2 text-xs text-[#7b8492]">
+                                    {refreshing ? (
+                                        <LoaderCircle
+                                            size={14}
+                                            className="animate-spin"
+                                        />
+                                    ) : (
+                                        <Search size={14} />
+                                    )}
+
+                                    当前第
+                                    {pageData.page + 1}
+                                    页
+                                </div>
                             </div>
                         </div>
 
-                        {pageData.content.length === 0 ? (
-                            <EmptyExpenses
-                                onCreate={openCreateModal}
+                        {pageData.content.length ===
+                        0 ? (
+                            <EmptyFilterResult
+                                hasFilters={
+                                    activeFilterCount > 0
+                                }
+                                onReset={resetFilters}
+                                onCreate={
+                                    openCreateModal
+                                }
                             />
                         ) : (
                             <>
@@ -307,18 +505,23 @@ if (loading) {
                                             <th className="px-6 py-4 font-medium">
                                                 消费项目
                                             </th>
+
                                             <th className="px-5 py-4 font-medium">
                                                 分类
                                             </th>
+
                                             <th className="px-5 py-4 font-medium">
                                                 金额
                                             </th>
+
                                             <th className="px-5 py-4 font-medium">
                                                 消费时间
                                             </th>
+
                                             <th className="px-5 py-4 font-medium">
                                                 状态
                                             </th>
+
                                             <th className="px-6 py-4 text-right font-medium">
                                                 操作
                                             </th>
@@ -329,10 +532,16 @@ if (loading) {
                                         {pageData.content.map(
                                             (expense) => (
                                                 <ExpenseTableRow
-                                                    key={expense.id}
-                                                    expense={expense}
+                                                    key={
+                                                        expense.id
+                                                    }
+                                                    expense={
+                                                        expense
+                                                    }
                                                     onEdit={() =>
-                                                        openEditModal(expense)
+                                                        openEditModal(
+                                                            expense,
+                                                        )
                                                     }
                                                     onDelete={() =>
                                                         void deleteExpense(
@@ -353,10 +562,14 @@ if (loading) {
                                                 key={expense.id}
                                                 expense={expense}
                                                 onEdit={() =>
-                                                    openEditModal(expense)
+                                                    openEditModal(
+                                                        expense,
+                                                    )
                                                 }
                                                 onDelete={() =>
-                                                    void deleteExpense(expense)
+                                                    void deleteExpense(
+                                                        expense,
+                                                    )
                                                 }
                                             />
                                         ),
@@ -366,13 +579,18 @@ if (loading) {
                                 <Pagination
                                     pageData={pageData}
                                     onPrevious={() =>
-                                        setPage((current) =>
-                                            Math.max(current - 1, 0),
+                                        setPage(
+                                            (current) =>
+                                                Math.max(
+                                                    current - 1,
+                                                    0,
+                                                ),
                                         )
                                     }
                                     onNext={() =>
                                         setPage(
-                                            (current) => current + 1,
+                                            (current) =>
+                                                current + 1,
                                         )
                                     }
                                 />
@@ -405,6 +623,332 @@ if (loading) {
     );
 }
 
+interface ExpenseFilterPanelProps {
+    categories: ExpenseCategory[];
+    filters: ExpenseFilters;
+    activeFilterCount: number;
+    errorMessage: string;
+    refreshing: boolean;
+    onChange: <
+        Key extends keyof ExpenseFilters,
+    >(
+        key: Key,
+        value: ExpenseFilters[Key],
+    ) => void;
+    onApply: () => void;
+    onReset: () => void;
+}
+
+function ExpenseFilterPanel({
+                                categories,
+                                filters,
+                                activeFilterCount,
+                                errorMessage,
+                                refreshing,
+                                onChange,
+                                onApply,
+                                onReset,
+                            }: ExpenseFilterPanelProps) {
+    return (
+        <section className="finance-surface mt-7 rounded-[25px] p-6">
+            <div className="flex flex-col gap-4 border-b border-[#e7e8eb] pb-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[#f4ead8] text-[#9b733a]">
+                        <Filter size={18} />
+                    </div>
+
+                    <div>
+                        <p className="font-semibold text-[#273147]">
+                            搜索与筛选
+                        </p>
+
+                        <p className="mt-1 text-xs leading-5 text-[#9299a5]">
+                            支持项目、商家和备注关键词，以及分类、日期、金额和异常状态。
+                        </p>
+                    </div>
+                </div>
+
+                {activeFilterCount > 0 && (
+                    <span className="w-fit rounded-full border border-[#dfcfb3] bg-[#faf4e9] px-3 py-1.5 text-xs text-[#80602f]">
+            当前启用
+                        {activeFilterCount}
+                        项筛选
+          </span>
+                )}
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <FilterField
+                    label="关键词"
+                    className="xl:col-span-2"
+                >
+                    <div className="relative">
+                        <Search
+                            size={16}
+                            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#949ba6]"
+                        />
+
+                        <input
+                            type="search"
+                            value={filters.keyword}
+                            onChange={(event) =>
+                                onChange(
+                                    "keyword",
+                                    event.target.value,
+                                )
+                            }
+                            onKeyDown={(event) => {
+                                if (
+                                    event.key === "Enter"
+                                ) {
+                                    event.preventDefault();
+                                    onApply();
+                                }
+                            }}
+                            placeholder="搜索消费项目、商家或备注"
+                            className="finance-input pl-10"
+                        />
+                    </div>
+                </FilterField>
+
+                <FilterField label="消费分类">
+                    <select
+                        value={filters.categoryId}
+                        onChange={(event) =>
+                            onChange(
+                                "categoryId",
+                                event.target.value,
+                            )
+                        }
+                        className="finance-input"
+                    >
+                        <option value="">
+                            全部分类
+                        </option>
+
+                        {categories.map(
+                            (category) => (
+                                <option
+                                    key={category.id}
+                                    value={category.id}
+                                >
+                                    {category.nameZh}
+                                </option>
+                            ),
+                        )}
+                    </select>
+                </FilterField>
+
+                <FilterField label="异常状态">
+                    <select
+                        value={
+                            filters.anomalyLevel
+                        }
+                        onChange={(event) =>
+                            onChange(
+                                "anomalyLevel",
+                                event.target
+                                    .value as ExpenseAnomalyFilter,
+                            )
+                        }
+                        className="finance-input"
+                    >
+                        <option value="">
+                            全部状态
+                        </option>
+                        <option value="NONE">
+                            正常
+                        </option>
+                        <option value="NOTICE">
+                            建议关注
+                        </option>
+                        <option value="WARNING">
+                            金额异常
+                        </option>
+                    </select>
+                </FilterField>
+
+                <FilterField label="开始日期">
+                    <input
+                        type="date"
+                        value={filters.startDate}
+                        onChange={(event) =>
+                            onChange(
+                                "startDate",
+                                event.target.value,
+                            )
+                        }
+                        className="finance-input"
+                    />
+                </FilterField>
+
+                <FilterField label="结束日期">
+                    <input
+                        type="date"
+                        value={filters.endDate}
+                        onChange={(event) =>
+                            onChange(
+                                "endDate",
+                                event.target.value,
+                            )
+                        }
+                        className="finance-input"
+                    />
+                </FilterField>
+
+                <FilterField label="最低金额">
+                    <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        value={filters.minAmount}
+                        onChange={(event) =>
+                            onChange(
+                                "minAmount",
+                                event.target.value,
+                            )
+                        }
+                        placeholder="例如 10"
+                        className="finance-input"
+                    />
+                </FilterField>
+
+                <FilterField label="最高金额">
+                    <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        value={filters.maxAmount}
+                        onChange={(event) =>
+                            onChange(
+                                "maxAmount",
+                                event.target.value,
+                            )
+                        }
+                        placeholder="例如 500"
+                        className="finance-input"
+                    />
+                </FilterField>
+
+                <FilterField label="排序字段">
+                    <select
+                        value={filters.sortBy}
+                        onChange={(event) =>
+                            onChange(
+                                "sortBy",
+                                event.target
+                                    .value as ExpenseSortBy,
+                            )
+                        }
+                        className="finance-input"
+                    >
+                        <option value="occurredAt">
+                            消费时间
+                        </option>
+                        <option value="amount">
+                            消费金额
+                        </option>
+                    </select>
+                </FilterField>
+
+                <FilterField label="排序方向">
+                    <select
+                        value={
+                            filters.sortDirection
+                        }
+                        onChange={(event) =>
+                            onChange(
+                                "sortDirection",
+                                event.target
+                                    .value as ExpenseSortDirection,
+                            )
+                        }
+                        className="finance-input"
+                    >
+                        <option value="desc">
+                            从高到低 / 从新到旧
+                        </option>
+                        <option value="asc">
+                            从低到高 / 从旧到新
+                        </option>
+                    </select>
+                </FilterField>
+            </div>
+
+            {errorMessage && (
+                <div className="mt-4 flex items-start gap-2 rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    <CircleAlert
+                        size={16}
+                        className="mt-0.5 shrink-0"
+                    />
+                    {errorMessage}
+                </div>
+            )}
+
+            <div className="mt-5 flex flex-col gap-3 border-t border-[#e7e8eb] pt-5 sm:flex-row sm:justify-end">
+                <button
+                    type="button"
+                    onClick={onReset}
+                    disabled={refreshing}
+                    className="finance-secondary-button"
+                >
+                    <RotateCcw size={15} />
+                    清空筛选
+                </button>
+
+                <button
+                    type="button"
+                    onClick={onApply}
+                    disabled={refreshing}
+                    className="finance-primary-button sm:min-w-[140px]"
+                >
+                    {refreshing ? (
+                        <LoaderCircle
+                            size={16}
+                            className="animate-spin"
+                        />
+                    ) : (
+                        <Search size={16} />
+                    )}
+
+                    {refreshing
+                        ? "正在查询"
+                        : "应用筛选"}
+                </button>
+            </div>
+        </section>
+    );
+}
+
+interface FilterFieldProps {
+    label: string;
+    className?: string;
+    children: ReactNode;
+}
+
+function FilterField({
+                         label,
+                         className = "",
+                         children,
+                     }: FilterFieldProps) {
+    return (
+        <label
+            className={[
+                "block",
+                className,
+            ].join(" ")}
+        >
+      <span className="mb-2 block text-xs font-medium text-[#657080]">
+        {label}
+      </span>
+
+            {children}
+        </label>
+    );
+}
+
 interface ExpenseRowProps {
     expense: ExpenseRecord;
     onEdit: () => void;
@@ -424,7 +968,8 @@ function ExpenseTableRow({
                 </p>
 
                 <p className="mt-1 text-xs text-[#9299a5]">
-                    {expense.merchant || "未填写商家"}
+                    {expense.merchant ||
+                        "未填写商家"}
                 </p>
             </td>
 
@@ -435,15 +980,21 @@ function ExpenseTableRow({
             </td>
 
             <td className="px-5 py-4 text-sm font-semibold text-[#172033]">
-                {formatCurrency(expense.amount)}
+                {formatCurrency(
+                    expense.amount,
+                )}
             </td>
 
             <td className="px-5 py-4 text-sm text-[#697386]">
-                {formatDateTime(expense.occurredAt)}
+                {formatDateTime(
+                    expense.occurredAt,
+                )}
             </td>
 
             <td className="px-5 py-4">
-                <AnomalyBadge expense={expense} />
+                <AnomalyBadge
+                    expense={expense}
+                />
             </td>
 
             <td className="px-6 py-4">
@@ -484,17 +1035,23 @@ function ExpenseMobileCard({
                     <p className="mt-1 text-xs text-[#9299a5]">
                         {expense.categoryName}
                         {" · "}
-                        {formatDateTime(expense.occurredAt)}
+                        {formatDateTime(
+                            expense.occurredAt,
+                        )}
                     </p>
                 </div>
 
                 <p className="font-semibold text-[#172033]">
-                    {formatCurrency(expense.amount)}
+                    {formatCurrency(
+                        expense.amount,
+                    )}
                 </p>
             </div>
 
             <div className="mt-4 flex items-center justify-between">
-                <AnomalyBadge expense={expense} />
+                <AnomalyBadge
+                    expense={expense}
+                />
 
                 <div className="flex gap-2">
                     <IconButton
@@ -527,6 +1084,7 @@ function AnomalyBadge({
             return (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700">
           <CircleAlert size={13} />
+
                     {expense.anomalyConfirmed
                         ? "异常已确认"
                         : "金额异常"}
@@ -554,7 +1112,7 @@ interface IconButtonProps {
     label: string;
     danger?: boolean;
     onClick: () => void;
-    children: React.ReactNode;
+    children: ReactNode;
 }
 
 function IconButton({
@@ -581,32 +1139,59 @@ function IconButton({
     );
 }
 
-function EmptyExpenses({
-                           onCreate,
-                       }: {
+interface EmptyFilterResultProps {
+    hasFilters: boolean;
+    onReset: () => void;
     onCreate: () => void;
-}) {
+}
+
+function EmptyFilterResult({
+                               hasFilters,
+                               onReset,
+                               onCreate,
+                           }: EmptyFilterResultProps) {
     return (
         <div className="flex min-h-[420px] flex-col items-center justify-center px-6 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#f4ead8] text-[#9b733a]">
-                <ReceiptText size={27} />
+                {hasFilters ? (
+                    <Search size={27} />
+                ) : (
+                    <ReceiptText size={27} />
+                )}
             </div>
 
             <p className="mt-5 font-semibold text-[#344054]">
-                还没有账单记录
+                {hasFilters
+                    ? "没有找到符合条件的账单"
+                    : "还没有账单记录"}
             </p>
 
             <p className="mt-2 max-w-sm text-sm leading-6 text-[#8b93a0]">
-                添加第一笔消费后，系统会自动更新财务总览、预算使用情况和消费趋势。
+                {hasFilters
+                    ? "可以调整关键词、日期、金额或分类条件后重新查询。"
+                    : "添加第一笔消费后，系统会自动更新财务总览、预算使用情况和消费趋势。"}
             </p>
 
             <button
                 type="button"
-                onClick={onCreate}
+                onClick={
+                    hasFilters
+                        ? onReset
+                        : onCreate
+                }
                 className="mt-6 flex h-11 items-center gap-2 rounded-[14px] bg-[#09152f] px-5 text-sm font-medium text-white"
             >
-                <Plus size={16} />
-                添加第一笔账单
+                {hasFilters ? (
+                    <>
+                        <RotateCcw size={16} />
+                        清空筛选
+                    </>
+                ) : (
+                    <>
+                        <Plus size={16} />
+                        添加第一笔账单
+                    </>
+                )}
             </button>
         </div>
     );
@@ -627,7 +1212,11 @@ function Pagination({
         <div className="flex items-center justify-between border-t border-[#e8e9ec] px-6 py-4">
             <p className="text-xs text-[#8a92a0]">
                 第{pageData.page + 1}页，共
-                {Math.max(pageData.totalPages, 1)}页
+                {Math.max(
+                    pageData.totalPages,
+                    1,
+                )}
+                页
             </p>
 
             <div className="flex gap-2">
@@ -653,4 +1242,238 @@ function Pagination({
             </div>
         </div>
     );
+}
+
+function normalizeFilters(
+    filters: ExpenseFilters,
+): ExpenseFilters {
+    return {
+        ...filters,
+        keyword: filters.keyword.trim(),
+        minAmount:
+            filters.minAmount.trim(),
+        maxAmount:
+            filters.maxAmount.trim(),
+    };
+}
+
+function validateFilters(
+    filters: ExpenseFilters,
+): string | null {
+    if (
+        filters.startDate &&
+        filters.endDate &&
+        filters.startDate >
+        filters.endDate
+    ) {
+        return "开始日期不能晚于结束日期。";
+    }
+
+    const minAmount =
+        parseOptionalAmount(
+            filters.minAmount,
+        );
+
+    const maxAmount =
+        parseOptionalAmount(
+            filters.maxAmount,
+        );
+
+    if (
+        filters.minAmount &&
+        minAmount === null
+    ) {
+        return "最低金额格式不正确。";
+    }
+
+    if (
+        filters.maxAmount &&
+        maxAmount === null
+    ) {
+        return "最高金额格式不正确。";
+    }
+
+    if (
+        minAmount !== null &&
+        maxAmount !== null &&
+        minAmount > maxAmount
+    ) {
+        return "最低金额不能大于最高金额。";
+    }
+
+    return null;
+}
+
+function parseOptionalAmount(
+    value: string,
+): number | null {
+    if (!value.trim()) {
+        return null;
+    }
+
+    const amount = Number(value);
+
+    if (
+        !Number.isFinite(amount) ||
+        amount < 0
+    ) {
+        return null;
+    }
+
+    return amount;
+}
+
+function buildExpenseQuery(
+    page: number,
+    size: number,
+    filters: ExpenseFilters,
+): string {
+    const parameters =
+        new URLSearchParams();
+
+    parameters.set(
+        "page",
+        String(page),
+    );
+
+    parameters.set(
+        "size",
+        String(size),
+    );
+
+    if (filters.keyword) {
+        parameters.set(
+            "keyword",
+            filters.keyword,
+        );
+    }
+
+    if (filters.categoryId) {
+        parameters.set(
+            "categoryId",
+            filters.categoryId,
+        );
+    }
+
+    if (filters.startDate) {
+        parameters.set(
+            "startInclusive",
+            localDateStartIso(
+                filters.startDate,
+            ),
+        );
+    }
+
+    if (filters.endDate) {
+        parameters.set(
+            "endExclusive",
+            localDateNextDayIso(
+                filters.endDate,
+            ),
+        );
+    }
+
+    if (filters.anomalyLevel) {
+        parameters.set(
+            "anomalyLevel",
+            filters.anomalyLevel,
+        );
+    }
+
+    if (filters.minAmount) {
+        parameters.set(
+            "minAmount",
+            filters.minAmount,
+        );
+    }
+
+    if (filters.maxAmount) {
+        parameters.set(
+            "maxAmount",
+            filters.maxAmount,
+        );
+    }
+
+    parameters.set(
+        "sortBy",
+        filters.sortBy,
+    );
+
+    parameters.set(
+        "sortDirection",
+        filters.sortDirection,
+    );
+
+    return (
+        "/api/expenses?" +
+        parameters.toString()
+    );
+}
+
+function localDateStartIso(
+    value: string,
+): string {
+    const [year, month, day] =
+        value
+            .split("-")
+            .map(Number);
+
+    return new Date(
+        year,
+        month - 1,
+        day,
+        0,
+        0,
+        0,
+        0,
+    ).toISOString();
+}
+
+function localDateNextDayIso(
+    value: string,
+): string {
+    const [year, month, day] =
+        value
+            .split("-")
+            .map(Number);
+
+    return new Date(
+        year,
+        month - 1,
+        day + 1,
+        0,
+        0,
+        0,
+        0,
+    ).toISOString();
+}
+
+function countActiveFilters(
+    filters: ExpenseFilters,
+): number {
+    return [
+        filters.keyword,
+        filters.categoryId,
+        filters.startDate,
+        filters.endDate,
+        filters.anomalyLevel,
+        filters.minAmount,
+        filters.maxAmount,
+    ].filter(Boolean).length;
+}
+
+function getSortDescription(
+    filters: ExpenseFilters,
+): string {
+    if (filters.sortBy === "amount") {
+        return filters.sortDirection ===
+        "asc"
+            ? "按消费金额从低到高排列"
+            : "按消费金额从高到低排列";
+    }
+
+    return filters.sortDirection ===
+    "asc"
+        ? "按消费时间从旧到新排列"
+        : "按消费时间从新到旧排列";
 }

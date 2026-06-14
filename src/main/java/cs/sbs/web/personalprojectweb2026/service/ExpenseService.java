@@ -7,10 +7,10 @@ import cs.sbs.web.personalprojectweb2026.entity.enums.RecordBatchStatus;
 import cs.sbs.web.personalprojectweb2026.entity.enums.RecordSource;
 import cs.sbs.web.personalprojectweb2026.exception.ResourceNotFoundException;
 import cs.sbs.web.personalprojectweb2026.repository.*;
-import cs.sbs.web.personalprojectweb2026.service.validation.ExpenseAnomalyService;
-import org.springframework.data.domain.Page;
+import cs.sbs.web.personalprojectweb2026.service.validation.ExpenseAnomalyService;import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -307,27 +307,79 @@ public class ExpenseService {
     public ExpensePageResponse getExpenses(
             Long userId,
             int page,
-            int size
+            int size,
+            String keyword,
+            Long categoryId,
+            Instant startInclusive,
+            Instant endExclusive,
+            ExpenseAnomalyLevel anomalyLevel,
+            BigDecimal minAmount,
+            BigDecimal maxAmount,
+            String sortBy,
+            String sortDirection
     ) {
         int safePage = Math.max(page, 0);
+
         int safeSize = Math.min(
                 Math.max(size, 1),
                 100
         );
 
+        String safeSortProperty =
+                resolveSortProperty(sortBy);
+
+        Sort.Direction safeDirection =
+                "asc".equalsIgnoreCase(
+                        sortDirection
+                )
+                        ? Sort.Direction.ASC
+                        : Sort.Direction.DESC;
+
+        Sort sort = Sort
+                .by(
+                        safeDirection,
+                        safeSortProperty
+                )
+                .and(
+                        Sort.by(
+                                safeDirection,
+                                "id"
+                        )
+                );
+
         Pageable pageable = PageRequest.of(
                 safePage,
-                safeSize
+                safeSize,
+                sort
         );
 
         Page<ExpenseRecord> result =
-                expenseRecordRepository
-                        .findAllByUser_IdOrderByOccurredAtDesc(
-                                userId,
-                                pageable
-                        );
+                expenseRecordRepository.findAll(
+                        ExpenseRecordSpecifications
+                                .filteredBy(
+                                        userId,
+                                        keyword,
+                                        categoryId,
+                                        startInclusive,
+                                        endExclusive,
+                                        anomalyLevel,
+                                        minAmount,
+                                        maxAmount
+                                ),
+                        pageable
+                );
 
         return ExpensePageResponse.from(result);
+    }
+
+    private String resolveSortProperty(
+            String sortBy
+    ) {
+        if ("amount".equalsIgnoreCase(sortBy)) {
+            return "amount";
+        }
+
+        return "occurredAt";
     }
 
     @Transactional

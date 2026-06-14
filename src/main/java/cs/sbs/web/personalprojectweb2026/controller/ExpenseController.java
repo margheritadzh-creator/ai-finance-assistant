@@ -1,13 +1,18 @@
 package cs.sbs.web.personalprojectweb2026.controller;
 
 import cs.sbs.web.personalprojectweb2026.dto.expense.*;
+import cs.sbs.web.personalprojectweb2026.entity.enums.ExpenseAnomalyLevel;
 import cs.sbs.web.personalprojectweb2026.service.ExpenseService;
 import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+
+import java.math.BigDecimal;
+import java.time.Instant;
 
 @RestController
 @RequestMapping("/api/expenses")
@@ -99,13 +104,59 @@ public class ExpenseController {
     @GetMapping
     public ExpensePageResponse getExpenses(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+
+            @RequestParam(defaultValue = "0")
+            int page,
+
+            @RequestParam(defaultValue = "20")
+            int size,
+
+            @RequestParam(required = false)
+            String keyword,
+
+            @RequestParam(required = false)
+            Long categoryId,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(
+                    iso = DateTimeFormat.ISO.DATE_TIME
+            )
+            Instant startInclusive,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(
+                    iso = DateTimeFormat.ISO.DATE_TIME
+            )
+            Instant endExclusive,
+
+            @RequestParam(required = false)
+            ExpenseAnomalyLevel anomalyLevel,
+
+            @RequestParam(required = false)
+            BigDecimal minAmount,
+
+            @RequestParam(required = false)
+            BigDecimal maxAmount,
+
+            @RequestParam(defaultValue = "occurredAt")
+            String sortBy,
+
+            @RequestParam(defaultValue = "desc")
+            String sortDirection
     ) {
         return expenseService.getExpenses(
                 userId(jwt),
                 page,
-                size
+                size,
+                keyword,
+                categoryId,
+                startInclusive,
+                endExclusive,
+                anomalyLevel,
+                minAmount,
+                maxAmount,
+                sortBy,
+                sortDirection
         );
     }
 
@@ -122,6 +173,8 @@ public class ExpenseController {
     }
 
     private Long userId(Jwt jwt) {
-        return Long.valueOf(jwt.getSubject());
+        return Long.valueOf(
+                jwt.getSubject()
+        );
     }
 }

@@ -11,12 +11,15 @@ import {
 
 import {
     AlertTriangle,
-  CalendarDays,
-  LoaderCircle,
-  PiggyBank,
-  RefreshCw,
-  Sparkles,
-  Target,
+    CalendarDays,
+    CheckCircle2,
+    LoaderCircle,
+    PiggyBank,
+    RefreshCw,
+    RotateCcw,
+    Sparkles,
+    Target,
+    XCircle,
 } from "lucide-react";
 
 import { MarkdownContent } from "@/components/markdown-content";
@@ -33,7 +36,10 @@ import {
     formatDateTime,
     formatMonth,
 } from "@/lib/format";
-import type { SavingAdvice } from "@/types/advice";
+import type {
+    SavingAdvice,
+    SavingAdviceStatus,
+} from "@/types/advice";
 import type { CurrentUser } from "@/types/auth";
 import {
     FinanceHeader,
@@ -65,6 +71,14 @@ export default function AdvicePage() {
 
     const [generating, setGenerating] =
         useState(false);
+
+    const [
+        statusUpdating,
+        setStatusUpdating,
+    ] = useState<{
+        adviceId: number;
+        status: SavingAdviceStatus;
+    } | null>(null);
 
     const [errorMessage, setErrorMessage] =
         useState("");
@@ -216,6 +230,73 @@ export default function AdvicePage() {
             );
         } finally {
             setGenerating(false);
+        }
+    }
+
+    async function updateAdviceStatus(
+        advice: SavingAdvice,
+        nextStatus: SavingAdviceStatus,
+    ) {
+        if (
+            statusUpdating ||
+            advice.status === nextStatus
+        ) {
+            return;
+        }
+
+        if (
+            nextStatus === "DISMISSED" &&
+            !window.confirm(
+                "确定要忽略这条省钱建议吗？之后仍然可以恢复为待处理。",
+            )
+        ) {
+            return;
+        }
+
+        setStatusUpdating({
+            adviceId: advice.id,
+            status: nextStatus,
+        });
+
+        setErrorMessage("");
+        setSuccessMessage("");
+
+        try {
+            const updatedAdvice =
+                await apiRequest<SavingAdvice>(
+                    `/api/ai/advisor/advice/${advice.id}/status?status=${nextStatus}`,
+                    {
+                        method: "PATCH",
+                    },
+                );
+
+            setAdviceList((current) =>
+                current.map((item) =>
+                    item.id === updatedAdvice.id
+                        ? updatedAdvice
+                        : item,
+                ),
+            );
+
+            setSuccessMessage(
+                `建议状态已更新为“${translateStatus(
+                    updatedAdvice.status,
+                )}”。`,
+            );
+        } catch (error) {
+            if (isUnauthorized(error)) {
+                clearAuth();
+                router.replace("/login");
+                return;
+            }
+
+            setErrorMessage(
+                error instanceof Error
+                    ? error.message
+                    : "建议状态更新失败。",
+            );
+        } finally {
+            setStatusUpdating(null);
         }
     }
 
@@ -451,17 +532,21 @@ export default function AdvicePage() {
                                             </p>
 
                                             <div className="mt-3 flex items-center justify-between gap-3">
-                        <span className="text-[11px] text-[#9299a5]">
-                          {formatDateTime(
-                              advice.createdAt,
-                          )}
-                        </span>
+  <span className="text-[11px] text-[#9299a5]">
+    {formatDateTime(
+        advice.createdAt,
+    )}
+  </span>
 
-                                                <PriorityBadge
-                                                    priority={
-                                                        advice.priority
-                                                    }
-                                                />
+                                                <div className="flex flex-wrap justify-end gap-2">
+                                                    <StatusBadge
+                                                        status={advice.status}
+                                                    />
+
+                                                    <PriorityBadge
+                                                        priority={advice.priority}
+                                                    />
+                                                </div>
                                             </div>
                                         </button>
                                     );
@@ -497,11 +582,9 @@ export default function AdvicePage() {
                                                     }
                                                 />
 
-                                                <span className="rounded-full bg-[#eef1f5] px-3 py-1 text-xs text-[#657080]">
-                          {translateStatus(
-                              selectedAdvice.status,
-                          )}
-                        </span>
+                                                <StatusBadge
+                                                    status={selectedAdvice.status}
+                                                />
                                             </div>
 
                                             <h2 className="mt-4 text-2xl font-semibold tracking-[-0.025em] text-[#172033]">
@@ -549,7 +632,106 @@ export default function AdvicePage() {
                                     </div>
                                 </div>
 
-                                <div className="max-h-[610px] overflow-y-auto px-6 py-7 sm:px-8">
+                                <div className="border-b border-[#e6e8ec] bg-[#fbfaf7] px-6 py-5 sm:px-8">
+                                    <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                                        <div>
+                                            <p className="text-sm font-semibold text-[#344054]">
+                                                建议执行状态
+                                            </p>
+
+                                            <p className="mt-1 text-xs leading-5 text-[#8b93a0]">
+                                                根据实际执行情况更新状态，便于持续跟踪省钱计划。
+                                            </p>
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2">
+                                            <StatusActionButton
+                                                label="恢复待处理"
+                                                icon={<RotateCcw size={15} />}
+                                                active={
+                                                    selectedAdvice.status ===
+                                                    "ACTIVE"
+                                                }
+                                                loading={
+                                                    statusUpdating?.adviceId ===
+                                                    selectedAdvice.id &&
+                                                    statusUpdating.status ===
+                                                    "ACTIVE"
+                                                }
+                                                disabled={
+                                                    statusUpdating !== null
+                                                }
+                                                tone="active"
+                                                onClick={() =>
+                                                    void updateAdviceStatus(
+                                                        selectedAdvice,
+                                                        "ACTIVE",
+                                                    )
+                                                }
+                                            />
+
+                                            <StatusActionButton
+                                                label="采纳建议"
+                                                icon={<CheckCircle2 size={15} />}
+                                                active={
+                                                    selectedAdvice.status ===
+                                                    "ADOPTED"
+                                                }
+                                                loading={
+                                                    statusUpdating?.adviceId ===
+                                                    selectedAdvice.id &&
+                                                    statusUpdating.status ===
+                                                    "ADOPTED"
+                                                }
+                                                disabled={
+                                                    statusUpdating !== null
+                                                }
+                                                tone="adopted"
+                                                onClick={() =>
+                                                    void updateAdviceStatus(
+                                                        selectedAdvice,
+                                                        "ADOPTED",
+                                                    )
+                                                }
+                                            />
+
+                                            <StatusActionButton
+                                                label="忽略建议"
+                                                icon={<XCircle size={15} />}
+                                                active={
+                                                    selectedAdvice.status ===
+                                                    "DISMISSED"
+                                                }
+                                                loading={
+                                                    statusUpdating?.adviceId ===
+                                                    selectedAdvice.id &&
+                                                    statusUpdating.status ===
+                                                    "DISMISSED"
+                                                }
+                                                disabled={
+                                                    statusUpdating !== null
+                                                }
+                                                tone="dismissed"
+                                                onClick={() =>
+                                                    void updateAdviceStatus(
+                                                        selectedAdvice,
+                                                        "DISMISSED",
+                                                    )
+                                                }
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div
+                                    className={[
+                                        "max-h-[610px] overflow-y-auto px-6 py-7 transition sm:px-8",
+                                        selectedAdvice.status ===
+                                        "DISMISSED"
+                                            ? "opacity-60"
+                                            : "",
+                                    ].join(" ")}
+                                >
                                     <MarkdownContent
                                         content={
                                             selectedAdvice.contentMarkdown
@@ -593,6 +775,110 @@ function SummaryCard({
     );
 }
 
+function StatusBadge({
+                         status,
+                     }: {
+    status: SavingAdviceStatus;
+}) {
+    switch (status) {
+        case "ADOPTED":
+            return (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+          <CheckCircle2 size={12} />
+          已采纳
+        </span>
+            );
+
+        case "DISMISSED":
+            return (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#eef1f5] px-3 py-1 text-xs font-medium text-[#707887]">
+          <XCircle size={12} />
+          已忽略
+        </span>
+            );
+
+        default:
+            return (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+          <RefreshCw size={12} />
+          待处理
+        </span>
+            );
+    }
+}
+
+interface StatusActionButtonProps {
+    label: string;
+    icon: ReactNode;
+    active: boolean;
+    loading: boolean;
+    disabled: boolean;
+    tone:
+        | "active"
+        | "adopted"
+        | "dismissed";
+    onClick: () => void;
+}
+
+function StatusActionButton({
+                                label,
+                                icon,
+                                active,
+                                loading,
+                                disabled,
+                                tone,
+                                onClick,
+                            }: StatusActionButtonProps) {
+    const toneClass = {
+        active:
+            active
+                ? "border-amber-300 bg-amber-50 text-amber-700"
+                : "border-[#dfe3e8] bg-white text-[#657080] hover:border-amber-300 hover:text-amber-700",
+
+        adopted:
+            active
+                ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                : "border-[#dfe3e8] bg-white text-[#657080] hover:border-emerald-300 hover:text-emerald-700",
+
+        dismissed:
+            active
+                ? "border-slate-300 bg-slate-100 text-slate-700"
+                : "border-[#dfe3e8] bg-white text-[#657080] hover:border-slate-300 hover:text-slate-700",
+    }[tone];
+
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled || active}
+            aria-pressed={active}
+            className={[
+                "inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border px-4 text-xs font-medium transition",
+                toneClass,
+                disabled || active
+                    ? "cursor-not-allowed"
+                    : "",
+                disabled && !active
+                    ? "opacity-55"
+                    : "",
+            ].join(" ")}
+        >
+            {loading ? (
+                <LoaderCircle
+                    size={15}
+                    className="animate-spin"
+                />
+            ) : (
+                icon
+            )}
+
+            {active
+                ? `${label}（当前）`
+                : label}
+        </button>
+    );
+}
+
 function PriorityBadge({
                            priority,
                        }: {
@@ -628,27 +914,18 @@ function PriorityBadge({
 }
 
 function translateStatus(
-    status: string,
+    status: SavingAdviceStatus,
 ): string {
-    switch (status.toUpperCase()) {
-        case "ACTIVE":
-        case "PENDING":
-        case "NEW":
-            return "待处理";
-
-        case "ACCEPTED":
+    switch (status) {
         case "ADOPTED":
             return "已采纳";
 
-        case "COMPLETED":
-            return "已完成";
-
         case "DISMISSED":
-        case "IGNORED":
             return "已忽略";
 
+        case "ACTIVE":
         default:
-            return "已生成";
+            return "待处理";
     }
 }
 

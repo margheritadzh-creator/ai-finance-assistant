@@ -57,3 +57,41 @@ export interface AnalyticsOverview {
     categoryStatistics: CategoryStatistics[];
     monthlyTrend: MonthlyTrend[];
 }
+
+export type FinancialHealthLevel =
+    | "RISK"
+    | "FAIR"
+    | "GOOD"
+    | "EXCELLENT";
+
+export interface FinancialHealthDetail {
+    id: number;
+    scoreMonth: string;
+    totalScore: number;
+    budgetScore: number;
+    stabilityScore: number;
+    savingScore: number;
+    structureScore: number;
+    riskScore: number;
+    level: FinancialHealthLevel;
+    detail: Record<string, unknown>;
+    generatedAt: string;
+}
+
+export type PredictionAlgorithm =
+    | "INSUFFICIENT_DATA_ESTIMATE"
+    | "WEIGHTED_MOVING_AVERAGE"
+    | "TREND_ADJUSTED_AVERAGE";
+
+export interface ExpensePredictionDetail {
+    id: number;
+    targetMonth: string;
+    predictedAmount: number;
+    lowerBound: number;
+    upperBound: number;
+    algorithm: PredictionAlgorithm;
+    modelVersion: string;
+    basedOnMonths: number;
+    explanation: string | null;
+    generatedAt: string;
+}

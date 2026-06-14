@@ -45,6 +45,10 @@ public class ExpenseAnomalyService {
     ) {
         PreferenceValues preference = getPreferenceValues(userId);
 
+        if (!preference.warningEnabled()) {
+            return noAnomaly();
+        }
+
         BigDecimal unitAmount = calculateUnitAmount(
                 amount,
                 quantity
@@ -179,7 +183,8 @@ public class ExpenseAnomalyService {
                                 "CN",
                                 BigDecimal.ONE,
                                 SpendingLevel.STANDARD,
-                                WarningLevel.MEDIUM
+                                WarningLevel.MEDIUM,
+                                true
                         )
                 );
     }
@@ -191,7 +196,8 @@ public class ExpenseAnomalyService {
                 preference.getRegionCode(),
                 preference.getPriceIndex(),
                 preference.getSpendingLevel(),
-                preference.getWarningLevel()
+                preference.getWarningLevel(),
+                preference.isWarningEnabled()
         );
     }
 
@@ -330,7 +336,8 @@ public class ExpenseAnomalyService {
             String regionCode,
             BigDecimal priceIndex,
             SpendingLevel spendingLevel,
-            WarningLevel warningLevel
+            WarningLevel warningLevel,
+            boolean warningEnabled
     ) {
     }
 }

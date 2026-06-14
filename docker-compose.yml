@@ -1,38 +1,115 @@
-version: "3.9"
-
 services:
   postgres:
     image: pgvector/pgvector:0.8.2-pg16
     container_name: finance-postgres
-    restart: always
+    restart: unless-stopped
+
     environment:
-      POSTGRES_DB: finance_db
-      POSTGRES_USER: finance_user
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ${POSTGRES_DB:-finance_db}
+      POSTGRES_USER: ${POSTGRES_USER:-finance_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      TZ: Asia/Shanghai
+
     ports:
-      - "5433:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
+
     volumes:
       - finance_pg:/var/lib/postgresql/data
 
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-finance_user} -d ${POSTGRES_DB:-finance_db}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+
   backend:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+
     container_name: finance-backend
-    depends_on:
-      - postgres
+    restart: unless-stopped
+
+    environment:
+      PORT: 8080
+      TZ: Asia/Shanghai
+
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-finance_db}
+      DATABASE_USERNAME: ${POSTGRES_USER:-finance_user}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_EXPIRATION_SECONDS: ${JWT_EXPIRATION_SECONDS:-7200}
+
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://moark.com/anthropic}
+      ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:?ANTHROPIC_AUTH_TOKEN is required}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-DeepSeek-V4-Flash}
+      ANTHROPIC_SMALL_FAST_MODEL: ${ANTHROPIC_SMALL_FAST_MODEL:-GLM-4.7-Flash}
+      ANTHROPIC_MAX_TOKENS: ${ANTHROPIC_MAX_TOKENS:-4096}
+      ANTHROPIC_TEMPERATURE: ${ANTHROPIC_TEMPERATURE:-0.2}
+
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+
     ports:
       - "8080:8080"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/finance_db
-      SPRING_DATASOURCE_USERNAME: finance_user
-      SPRING_DATASOURCE_PASSWORD: password
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS --max-time 3 -o /dev/null http://localhost:8080/actuator/health"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+
     container_name: finance-frontend
+    restart: unless-stopped
+
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+
     ports:
       - "3000:3000"
+
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000').then(response => process.exit(response.status < 500 ? 0 : 1)).catch(() => process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
 
 volumes:
   finance_pg:

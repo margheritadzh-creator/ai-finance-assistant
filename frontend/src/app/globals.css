@@ -1,0 +1,294 @@
+@import "tailwindcss";
+
+:root {
+    color-scheme: light;
+
+    --finance-navy-950: #071126;
+    --finance-navy-900: #09152f;
+    --finance-navy-800: #102445;
+    --finance-navy-700: #1a315a;
+
+    --finance-gold-600: #9b733a;
+    --finance-gold-500: #c4a36a;
+    --finance-gold-300: #dec79f;
+    --finance-gold-200: #ead9b8;
+    --finance-gold-100: #f4ead8;
+
+    --finance-ivory: #f6f4ef;
+    --finance-paper: #fbfaf7;
+
+    --finance-ink: #111827;
+    --finance-muted: #697386;
+    --finance-line: rgba(15, 23, 42, 0.09);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    min-height: 100%;
+    background: var(--finance-ivory);
+}
+
+body {
+    position: relative;
+    isolation: isolate;
+    min-height: 100vh;
+    margin: 0;
+    color: var(--finance-ink);
+
+    background:
+            radial-gradient(
+                    circle at 8% 5%,
+                    rgba(196, 163, 106, 0.14),
+                    transparent 28%
+            ),
+            radial-gradient(
+                    circle at 94% 90%,
+                    rgba(26, 49, 90, 0.12),
+                    transparent 32%
+            ),
+            linear-gradient(
+                    145deg,
+                    #f8f6f1 0%,
+                    #f3f2ee 50%,
+                    #f5f2eb 100%
+            );
+
+    background-attachment: fixed;
+
+    font-family:
+            Inter,
+            "PingFang SC",
+            "Microsoft YaHei",
+            system-ui,
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            sans-serif;
+
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+body::before {
+    position: fixed;
+    z-index: -1;
+    inset: 0;
+    content: "";
+    pointer-events: none;
+
+    background-image:
+            linear-gradient(
+                    rgba(15, 23, 42, 0.022) 1px,
+                    transparent 1px
+            ),
+            linear-gradient(
+                    90deg,
+                    rgba(15, 23, 42, 0.022) 1px,
+                    transparent 1px
+            );
+
+    background-size: 42px 42px;
+    mask-image: linear-gradient(
+            to bottom,
+            rgba(0, 0, 0, 0.75),
+            transparent 90%
+    );
+}
+
+button,
+input,
+textarea,
+select {
+    font: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+button:disabled {
+    cursor: not-allowed;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+::selection {
+    color: white;
+    background: var(--finance-navy-700);
+}
+
+.finance-surface {
+    border: 1px solid var(--finance-line);
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow:
+            0 1px 2px rgba(15, 23, 42, 0.03),
+            0 18px 55px rgba(15, 23, 42, 0.065);
+    backdrop-filter: blur(24px);
+}
+
+.finance-kicker {
+    color: var(--finance-gold-600);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+}
+
+.finance-input {
+    width: 100%;
+    height: 52px;
+    padding: 0 16px;
+
+    color: var(--finance-ink);
+    background: rgba(255, 255, 255, 0.88);
+
+    border: 1px solid #dce1e8;
+    border-radius: 15px;
+    outline: none;
+
+    transition:
+            border-color 160ms ease,
+            box-shadow 160ms ease,
+            background-color 160ms ease;
+}
+
+.finance-input::placeholder {
+    color: #a1a8b3;
+}
+
+.finance-input:hover {
+    border-color: #c9cfd9;
+    background: #ffffff;
+}
+
+.finance-input:focus {
+    border-color: var(--finance-gold-500);
+    background: #ffffff;
+    box-shadow: 0 0 0 4px rgba(196, 163, 106, 0.14);
+}
+
+.finance-input[aria-invalid="true"] {
+    border-color: #e39a9a;
+}
+
+.finance-input[aria-invalid="true"]:focus {
+    border-color: #d66666;
+    box-shadow: 0 0 0 4px rgba(214, 102, 102, 0.12);
+}
+
+.finance-primary-button {
+    display: flex;
+    width: 100%;
+    height: 52px;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+
+    padding: 0 20px;
+
+    color: #ffffff;
+    font-weight: 600;
+
+    background:
+            linear-gradient(
+                    135deg,
+                    var(--finance-navy-900),
+                    var(--finance-navy-700)
+            );
+
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 15px;
+
+    box-shadow:
+            0 12px 28px rgba(9, 21, 47, 0.2),
+            inset 0 1px rgba(255, 255, 255, 0.1);
+
+    transition:
+            transform 160ms ease,
+            box-shadow 160ms ease,
+            opacity 160ms ease;
+}
+
+.finance-primary-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow:
+            0 16px 34px rgba(9, 21, 47, 0.26),
+            inset 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.finance-primary-button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.finance-primary-button:disabled {
+    opacity: 0.56;
+}
+
+.finance-secondary-button {
+    display: inline-flex;
+    height: 42px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+
+    padding: 0 16px;
+
+    color: #344054;
+    font-size: 0.875rem;
+    font-weight: 600;
+
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid #dce1e8;
+    border-radius: 13px;
+
+    transition:
+            background-color 160ms ease,
+            border-color 160ms ease,
+            transform 160ms ease;
+}
+
+.finance-secondary-button:hover {
+    background: #ffffff;
+    border-color: var(--finance-gold-300);
+    transform: translateY(-1px);
+}
+
+::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c8cdd5;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #aeb5c0;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+
+button {
+    outline: none;
+}
+
+button:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+button, a {
+    white-space: nowrap;
+}

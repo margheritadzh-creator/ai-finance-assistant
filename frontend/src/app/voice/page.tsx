@@ -34,6 +34,11 @@ import {
     toDateTimeLocalValue,
 } from "@/lib/format";
 import type { CurrentUser } from "@/types/auth";
+
+import type {
+    UserPreference,
+} from "@/types/settings";
+
 import type {
     ExpenseCategory,
 } from "@/types/expense";
@@ -183,18 +188,29 @@ export default function VoiceEntryPage() {
         setErrorMessage("");
 
         try {
-            const [currentUser, categoryList] =
-                await Promise.all([
-                    apiRequest<CurrentUser>(
-                        "/api/auth/me",
-                    ),
-                    apiRequest<ExpenseCategory[]>(
-                        "/api/categories",
-                    ),
-                ]);
+            const [
+                currentUser,
+                categoryList,
+                currentPreference,
+            ] = await Promise.all([
+                apiRequest<CurrentUser>(
+                    "/api/auth/me",
+                ),
+
+                apiRequest<ExpenseCategory[]>(
+                    "/api/categories",
+                ),
+
+                apiRequest<UserPreference>(
+                    "/api/preferences",
+                ),
+            ]);
 
             setUser(currentUser);
             setCategories(categoryList);
+            setLanguage(
+                currentPreference.speechLanguage,
+            );
         } catch (error) {
             if (
                 error instanceof ApiError &&

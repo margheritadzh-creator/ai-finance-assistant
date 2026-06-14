@@ -36,3 +36,8 @@ build/
 frontend/node_modules/
 frontend/.next/
 target/
+
+# macOS and local temporary files
+.DS_Store
+*-context.txt
+*.before-*
