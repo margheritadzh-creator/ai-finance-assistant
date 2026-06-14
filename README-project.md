@@ -100,3 +100,43 @@ AI Finance Assistant 是一个全栈智能财务管理系统，结合 AI能力 +
 ---
 
 ## 4. 项目结构
+personal-project/
+├── frontend/ # Next.js 前端
+│ ├── src/app
+│ ├── components
+│ ├── lib
+│ └── Dockerfile
+│
+├── src/main/java # Spring Boot 后端
+│ ├── controller
+│ ├── service
+│ ├── config
+│ ├── dto
+│ └── Application.java
+│
+├── docker-compose.yml
+└── README.md
+
+
+---
+
+## 5. 本地运行
+
+### 5.1 使用 Docker（推荐）
+
+```bash
+docker compose up --build
+
+访问：
+前端：http://localhost:3000
+后端：http://localhost:8080
+数据库：PostgreSQL（5433）
+
+### 5.2 手动运行（开发模式）
+
+前端
+cd frontend
+npm install
+npm run dev
+后端
+mvn spring-boot:run
